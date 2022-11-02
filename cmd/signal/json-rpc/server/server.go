@@ -48,10 +48,13 @@ func (p *JSONSignal) Handle(ctx context.Context, conn *jsonrpc2.Conn, req *jsonr
 		})
 	}
 
+	fmt.Println("method ws", req.Method, req.ID)
+
 	switch req.Method {
 	case "join":
 		var join Join
 		err := json.Unmarshal(*req.Params, &join)
+
 		if err != nil {
 			p.Logger.Error(err, "connect: error parsing offer")
 			replyError(err)
@@ -90,6 +93,7 @@ func (p *JSONSignal) Handle(ctx context.Context, conn *jsonrpc2.Conn, req *jsonr
 	case "offer":
 		var negotiation Negotiation
 		err := json.Unmarshal(*req.Params, &negotiation)
+
 		if err != nil {
 			p.Logger.Error(err, "connect: error parsing offer")
 			replyError(err)
@@ -106,6 +110,7 @@ func (p *JSONSignal) Handle(ctx context.Context, conn *jsonrpc2.Conn, req *jsonr
 	case "answer":
 		var negotiation Negotiation
 		err := json.Unmarshal(*req.Params, &negotiation)
+
 		if err != nil {
 			p.Logger.Error(err, "connect: error parsing answer")
 			replyError(err)
@@ -120,6 +125,7 @@ func (p *JSONSignal) Handle(ctx context.Context, conn *jsonrpc2.Conn, req *jsonr
 	case "trickle":
 		var trickle Trickle
 		err := json.Unmarshal(*req.Params, &trickle)
+
 		if err != nil {
 			p.Logger.Error(err, "connect: error parsing candidate")
 			replyError(err)

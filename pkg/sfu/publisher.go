@@ -75,13 +75,19 @@ func NewPublisher(id string, session Session, cfg *WebRTCTransportConfig) (*Publ
 	}
 
 	pc.OnTrack(func(track *webrtc.TrackRemote, receiver *webrtc.RTPReceiver) {
-		Logger.V(1).Info("Peer got remote track id",
+		var data []byte
+		n, _, _ := track.Read(data)
+		Logger.V(0).Info("Peer got remote track id",
 			"peer_id", p.id,
 			"track_id", track.ID(),
 			"mediaSSRC", track.SSRC(),
 			"rid", track.RID(),
 			"stream_id", track.StreamID(),
+			"data read", data,
+			"size", n,
 		)
+
+		fmt.Println("on track")
 
 		r, pub := p.router.AddReceiver(receiver, track, track.ID(), track.StreamID())
 		if pub {

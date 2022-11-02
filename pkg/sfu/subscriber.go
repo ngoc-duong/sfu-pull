@@ -320,3 +320,7 @@ func (s *Subscriber) sendStreamDownTracksReports(streamID string) {
 		}
 	}()
 }
+
+func (s *Subscriber) GetPeerConnection() *webrtc.PeerConnection {
+	return s.pc
+}

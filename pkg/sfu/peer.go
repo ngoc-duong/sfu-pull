@@ -309,3 +309,24 @@ func (p *PeerLocal) Session() Session {
 func (p *PeerLocal) ID() string {
 	return p.id
 }
+
+func (p *PeerLocal) GetProvider() SessionProvider {
+	return p.provider
+}
+
+func (p *PeerLocal) SetSession(s Session) error {
+	if s == nil {
+		return errors.New("no reference to session")
+	} else {
+		p.session = s
+		return nil
+	}
+}
+
+func (p *PeerLocal) AddPeer(peer Peer) {
+	p.session.AddPeer(peer)
+}
+
+func (p *PeerLocal) SetID(id string) {
+	p.id = id
+}

@@ -14,6 +14,11 @@ const (
 
 const frameMarking = "urn:ietf:params:rtp-hdrext:framemarking"
 
+func GetMediaEngine() (*webrtc.MediaEngine, error) {
+	me, err := getSubscriberMediaEngine()
+	return me, err
+}
+
 func getPublisherMediaEngine() (*webrtc.MediaEngine, error) {
 	me := &webrtc.MediaEngine{}
 	if err := me.RegisterCodec(webrtc.RTPCodecParameters{
