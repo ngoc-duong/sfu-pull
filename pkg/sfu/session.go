@@ -30,6 +30,7 @@ type Session interface {
 	FanOutMessage(origin, label string, msg webrtc.DataChannelMessage)
 	Peers() []Peer
 	RelayPeers() []*RelayPeer
+	RemoveAllPeer()
 }
 
 type SessionLocal struct {
@@ -153,6 +154,13 @@ func (s *SessionLocal) RemovePeer(p Peer) {
 	if peerCount == 0 {
 		s.Close()
 	}
+}
+
+func (s *SessionLocal) RemoveAllPeer() {
+	for _, peer := range s.peers {
+		peer.Close()
+	}
+	s.Close()
 }
 
 func (s *SessionLocal) AddDatachannel(owner string, dc *webrtc.DataChannel) {

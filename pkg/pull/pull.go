@@ -36,7 +36,7 @@ type TrickleResponse struct {
 }
 
 func readMessage(c *websocket.Conn, p *server.JSONSignal, logger logr.Logger, done chan struct{}) {
-	defer close(done)
+	//defer close(done)
 	for {
 		_, mess, errRead := c.ReadMessage()
 		if errRead != nil {
@@ -81,11 +81,12 @@ func readMessage(c *websocket.Conn, p *server.JSONSignal, logger logr.Logger, do
 			messageBytes := reqBodyBytes.Bytes()
 			c.WriteMessage(websocket.TextMessage, messageBytes)
 		} else if response.Method == "trickle" {
-			fmt.Println("got trickle")
+
 			var trickleResponse TrickleResponse
 			if err := json.Unmarshal(mess, &trickleResponse); err != nil {
 				logger.Error(err, "Err read trickle")
 			}
+			fmt.Println("got target", trickleResponse.Params.Target)
 			err := p.Trickle(trickleResponse.Params.Candidate, trickleResponse.Params.Target)
 			if err != nil {
 				logger.Error(err, "Err add candidate")
@@ -94,24 +95,34 @@ func readMessage(c *websocket.Conn, p *server.JSONSignal, logger logr.Logger, do
 	}
 }
 
-func ConnectOrigin(s *sfu.SFU, logger logr.Logger) {
+func createConnWs(address string, logger logr.Logger) *websocket.Conn {
 	var addrConn string
-	flag.StringVar(&addrConn, "add", "localhost:7070", "address to use")
+	flag.StringVar(&addrConn, "add", address, "address to use")
 	flag.Parse()
 	u := url.URL{Scheme: "ws", Host: addrConn, Path: "/ws"}
 	logger.Info("connecting to", u.String())
 	c, _, err := websocket.DefaultDialer.Dial(u.String(), nil)
+	if err != nil {
+		logger.Error(err, "Err create conn ws")
+		return nil
+	}
+	return c
+}
 
-	p := server.NewJSONSignal(sfu.NewPeer(s), logger)
+func createPeer(peerLocal *sfu.PeerLocal, c *websocket.Conn, logger logr.Logger) *server.JSONSignal {
+	p := server.NewJSONSignal(peerLocal, logger)
+	//defer p.Close()
 
 	// p.OnOffer = func(sd *webrtc.SessionDescription) {
-	// 	offerJSON, err := json.Marshal(sd)
-	// 	if err != nil {
-	// 		logger.Error(err, "Err marshal")
-	// 	}
-	// 	params := (*json.RawMessage)(&offerJSON)
 	// 	connectionUUID := uuid.New()
 	// 	connectionID := uint64(connectionUUID.ID())
+
+	// 	offerJSON, _ := json.Marshal(&server.Negotiation{
+	// 		Desc: *sd,
+	// 	})
+
+	// 	params := (*json.RawMessage)(&offerJSON)
+
 	// 	offerMessage := &jsonrpc2.Request{
 	// 		Method: "offer",
 	// 		Params: params,
@@ -121,19 +132,26 @@ func ConnectOrigin(s *sfu.SFU, logger logr.Logger) {
 	// 			Num:      connectionID,
 	// 		},
 	// 	}
+
 	// 	reqBodyBytes := new(bytes.Buffer)
 	// 	json.NewEncoder(reqBodyBytes).Encode(offerMessage)
-
 	// 	messageBytes := reqBodyBytes.Bytes()
 	// 	c.WriteMessage(websocket.TextMessage, messageBytes)
 	// }
 
 	p.OnIceCandidate = func(candidate *webrtc.ICECandidateInit, i int) {
+		if i == 0 {
+			i = 1
+		} else {
+			i = 0
+		}
 		if candidate != nil {
 			candidateJSON, err := json.Marshal(&server.Trickle{
 				Candidate: *candidate,
 				Target:    i,
 			})
+
+			fmt.Println("send target", i)
 
 			params := (*json.RawMessage)(&candidateJSON)
 
@@ -152,29 +170,16 @@ func ConnectOrigin(s *sfu.SFU, logger logr.Logger) {
 			c.WriteMessage(websocket.TextMessage, messageBytes)
 		}
 	}
+	return p
+}
 
-	p.Join("test room", "", sfu.JoinConfig{
-		NoPublish:       false,
-		NoSubscribe:     false,
-		NoAutoSubscribe: false,
-	})
-
-	pc := p.Subscriber().GetPeerConnection()
-
-	if err != nil {
-		logger.Error(err, "Error connect origin")
-	}
-	defer c.Close()
-
-	done := make(chan struct{})
-
-	go readMessage(c, p, logger, done)
-
-	offer, _ := pc.CreateOffer(nil)
+func sendOfferJoin(pc *webrtc.PeerConnection, c *websocket.Conn, logger logr.Logger) error {
+	offer, err := pc.CreateOffer(nil)
 
 	errSetDps := pc.SetLocalDescription(offer)
 	if errSetDps != nil {
 		logger.Error(errSetDps, "Err set dps")
+		return errSetDps
 	}
 	offerJSON, err := json.Marshal(&server.Join{
 		Offer: offer,
@@ -186,6 +191,10 @@ func ConnectOrigin(s *sfu.SFU, logger logr.Logger) {
 			NoAutoSubscribe: false,
 		},
 	})
+	if err != nil {
+		logger.Error(err, "Err create offer")
+		return err
+	}
 	params := (*json.RawMessage)(&offerJSON)
 	connectionUUID := uuid.New()
 	connectionID := uint64(connectionUUID.ID())
@@ -203,6 +212,29 @@ func ConnectOrigin(s *sfu.SFU, logger logr.Logger) {
 
 	messageBytes := reqBodyBytes.Bytes()
 	c.WriteMessage(websocket.TextMessage, messageBytes)
+	return nil
+}
+
+func ConnectOrigin(s *sfu.SFU, logger logr.Logger) {
+	c := createConnWs("localhost:7070", logger)
+	defer c.Close()
+
+	p := createPeer(sfu.NewPeer(s), c, logger)
+	defer p.Close()
+
+	p.Join("test room", "pull", sfu.JoinConfig{
+		NoPublish:       false,
+		NoSubscribe:     false,
+		NoAutoSubscribe: false,
+	})
+
+	pc := p.Subscriber().GetPeerConnection()
+
+	done := make(chan struct{})
+
+	go readMessage(c, p, logger, done)
+
+	sendOfferJoin(pc, c, logger)
 
 	<-done
 }

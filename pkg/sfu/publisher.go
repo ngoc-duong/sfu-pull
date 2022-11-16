@@ -97,7 +97,7 @@ func NewPublisher(id string, session Session, cfg *WebRTCTransportConfig) (*Publ
 			p.tracks = append(p.tracks, publisherTrack)
 			for _, rp := range p.relayPeers {
 				if err = p.createRelayTrack(track, r, rp.peer); err != nil {
-					Logger.V(1).Error(err, "Creating relay track.", "peer_id", p.id)
+					Logger.V(0).Error(err, "Creating relay track.", "peer_id", p.id)
 				}
 			}
 			p.mu.Unlock()
@@ -120,12 +120,12 @@ func NewPublisher(id string, session Session, cfg *WebRTCTransportConfig) (*Publ
 	})
 
 	pc.OnICEConnectionStateChange(func(connectionState webrtc.ICEConnectionState) {
-		Logger.V(1).Info("ice connection status", "state", connectionState)
+		Logger.V(0).Info("ice connection status", "state", connectionState)
 		switch connectionState {
 		case webrtc.ICEConnectionStateFailed:
 			fallthrough
 		case webrtc.ICEConnectionStateClosed:
-			Logger.V(1).Info("webrtc ice closed", "peer_id", p.id)
+			Logger.V(0).Info("webrtc ice closed", "peer_id", p.id)
 			p.Close()
 		}
 
@@ -453,4 +453,8 @@ func (p *Publisher) relayReports(rp *relay.Peer) {
 			Logger.Error(err, "Sending downtrack reports err")
 		}
 	}
+}
+
+func (p *Publisher) GetPeerConnection() *webrtc.PeerConnection {
+	return p.pc
 }

@@ -55,13 +55,13 @@ func NewSubscriber(id string, cfg WebRTCTransportConfig) (*Subscriber, error) {
 	}
 
 	pc.OnICEConnectionStateChange(func(connectionState webrtc.ICEConnectionState) {
-		Logger.V(1).Info("ice connection status", "state", connectionState)
+		Logger.V(0).Info("ice connection status", "state", connectionState)
 		switch connectionState {
 		case webrtc.ICEConnectionStateFailed:
 			fallthrough
 		case webrtc.ICEConnectionStateClosed:
 			s.closeOnce.Do(func() {
-				Logger.V(1).Info("webrtc ice closed", "peer_id", s.id)
+				Logger.V(0).Info("webrtc ice closed", "peer_id", s.id)
 				if err := s.Close(); err != nil {
 					Logger.Error(err, "webrtc transport close err")
 				}

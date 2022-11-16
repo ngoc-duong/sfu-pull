@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/go-logr/logr"
+	cacheredis "github.com/pion/ion-sfu/pkg/cache"
 	"github.com/pion/ion-sfu/pkg/sfu"
 	"github.com/pion/webrtc/v3"
 	"github.com/sourcegraph/jsonrpc2"
@@ -35,6 +36,9 @@ type JSONSignal struct {
 	logr.Logger
 }
 
+var Conn *Connect
+var PullPeers = make(map[string]*JSONSignal)
+
 func NewJSONSignal(p *sfu.PeerLocal, l logr.Logger) *JSONSignal {
 	return &JSONSignal{p, l}
 }
@@ -48,8 +52,6 @@ func (p *JSONSignal) Handle(ctx context.Context, conn *jsonrpc2.Conn, req *jsonr
 		})
 	}
 
-	fmt.Println("method ws", req.Method, req.ID)
-
 	switch req.Method {
 	case "join":
 		var join Join
@@ -61,34 +63,71 @@ func (p *JSONSignal) Handle(ctx context.Context, conn *jsonrpc2.Conn, req *jsonr
 			break
 		}
 
-		p.OnOffer = func(offer *webrtc.SessionDescription) {
-			if err := conn.Notify(ctx, "offer", offer); err != nil {
-				p.Logger.Error(err, "error sending offer")
-			}
-
-		}
-		p.OnIceCandidate = func(candidate *webrtc.ICECandidateInit, target int) {
-			if err := conn.Notify(ctx, "trickle", Trickle{
-				Candidate: *candidate,
-				Target:    target,
-			}); err != nil {
-				p.Logger.Error(err, "error sending ice candidate")
-			}
-		}
-
-		err = p.Join(join.SID, join.UID, join.Config)
+		ssids, err := cacheredis.GetCacheRedis("sessionid")
 		if err != nil {
-			replyError(err)
+			p.Logger.Error(err, "Err get cache ssid")
 			break
 		}
 
-		answer, err := p.Answer(join.Offer)
-		if err != nil {
-			replyError(err)
-			break
-		}
+		if join.SID != "" {
+			for _, id := range ssids {
+				if id == join.SID {
+					p.OnOffer = func(offer *webrtc.SessionDescription) {
+						if err := conn.Notify(ctx, "offer", offer); err != nil {
+							p.Logger.Error(err, "error sending offer")
+						}
 
-		_ = conn.Reply(ctx, req.ID, answer)
+					}
+					p.OnIceCandidate = func(candidate *webrtc.ICECandidateInit, target int) {
+						if err := conn.Notify(ctx, "trickle", Trickle{
+							Candidate: *candidate,
+							Target:    target,
+						}); err != nil {
+							p.Logger.Error(err, "error sending ice candidate")
+						}
+					}
+
+					accept, newConn, s := p.GetProvider().CheckSession(join.SID)
+					if newConn == true {
+						if Conn == nil {
+							c := createConnWs("localhost:7070", p.Logger)
+							Conn = c
+
+							done := make(chan struct{})
+							go readMessage(Conn, PullPeers, p.Logger, done)
+						}
+
+						peerPull := createPeer(sfu.NewPeer(s), Conn, join.SID, p.Logger)
+						//defer peerPull.Close()
+						PullPeers[join.SID] = peerPull
+
+						pc := peerPull.Subscriber().GetPeerConnection()
+						go sendOfferJoin(pc, join.SID, Conn, peerPull.Logger)
+
+					}
+					if accept == true {
+						err = p.Join(join.SID, join.UID, join.Config)
+						if err != nil {
+							replyError(err)
+							break
+						}
+
+						answer, err := p.Answer(join.Offer)
+						if err != nil {
+							replyError(err)
+							break
+						}
+
+						_ = conn.Reply(ctx, req.ID, answer)
+					} else {
+						p.Close()
+					}
+					break
+				}
+			}
+		} else {
+			p.Close()
+		}
 
 	case "offer":
 		var negotiation Negotiation

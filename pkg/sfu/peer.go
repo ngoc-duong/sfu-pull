@@ -8,6 +8,7 @@ import (
 	"github.com/lucsky/cuid"
 
 	"github.com/pion/webrtc/v3"
+	"github.com/sourcegraph/jsonrpc2"
 )
 
 const (
@@ -50,6 +51,7 @@ type JoinConfig struct {
 // This allows the sfu.SFU{} implementation to be customized / wrapped by another package
 type SessionProvider interface {
 	GetSession(sid string) (Session, WebRTCTransportConfig)
+	CheckSession(id string) (bool, bool, *SFU)
 }
 
 type ChannelAPIMessage struct {
@@ -74,6 +76,8 @@ type PeerLocal struct {
 
 	remoteAnswerPending bool
 	negotiationPending  bool
+
+	Conn *jsonrpc2.Conn
 }
 
 // NewPeer creates a new PeerLocal for signaling with the given SFU
@@ -91,17 +95,29 @@ func (p *PeerLocal) Join(sid, uid string, config ...JoinConfig) error {
 	}
 
 	if p.session != nil {
-		Logger.V(1).Info("peer already exists", "session_id", sid, "peer_id", p.id, "publisher_id", p.publisher.id)
+		Logger.V(0).Info("peer already exists", "session_id", sid, "peer_id", p.id, "publisher_id", p.publisher.id)
 		return ErrTransportExists
 	}
 
-	if uid == "" {
-		uid = cuid.New()
-	}
-	p.id = uid
 	var err error
 
 	s, cfg := p.provider.GetSession(sid)
+	if uid == "pull" {
+
+		cfgNew := webrtc.Configuration{
+			ICEServers: []webrtc.ICEServer{
+				{
+					URLs: []string{"stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302"},
+				},
+			},
+		}
+		cfg.Configuration = cfgNew
+	}
+
+	if uid == "" || uid == "pull" {
+		uid = cuid.New()
+	}
+	p.id = uid
 	p.session = s
 
 	if !conf.NoSubscribe {
@@ -121,7 +137,7 @@ func (p *PeerLocal) Join(sid, uid string, config ...JoinConfig) error {
 				return
 			}
 
-			Logger.V(1).Info("Negotiation needed", "peer_id", p.id)
+			Logger.V(0).Info("Negotiation needed", "peer_id", p.id)
 			offer, err := p.subscriber.CreateOffer()
 			if err != nil {
 				Logger.Error(err, "CreateOffer error")
@@ -136,12 +152,13 @@ func (p *PeerLocal) Join(sid, uid string, config ...JoinConfig) error {
 		})
 
 		p.subscriber.OnICECandidate(func(c *webrtc.ICECandidate) {
-			Logger.V(1).Info("On subscriber ice candidate called for peer", "peer_id", p.id)
+			Logger.V(0).Info("On subscriber ice candidate called for peer", "peer_id", p.id)
 			if c == nil {
 				return
 			}
 
 			if p.OnIceCandidate != nil && !p.closed.get() {
+
 				json := c.ToJSON()
 				p.OnIceCandidate(&json, subscriber)
 			}
@@ -162,7 +179,7 @@ func (p *PeerLocal) Join(sid, uid string, config ...JoinConfig) error {
 		}
 
 		p.publisher.OnICECandidate(func(c *webrtc.ICECandidate) {
-			Logger.V(1).Info("on publisher ice candidate called for peer", "peer_id", p.id)
+			Logger.V(0).Info("on publisher ice candidate called for peer", "peer_id", p.id)
 			if c == nil {
 				return
 			}
@@ -199,6 +216,7 @@ func (p *PeerLocal) Answer(sdp webrtc.SessionDescription) (*webrtc.SessionDescri
 	Logger.V(0).Info("PeerLocal got offer", "peer_id", p.id)
 
 	if p.publisher.SignalingState() != webrtc.SignalingStateStable {
+		fmt.Println("err signal", p.publisher.SignalingState().String())
 		return nil, ErrOfferIgnored
 	}
 
@@ -290,6 +308,10 @@ func (p *PeerLocal) Close() error {
 			return err
 		}
 	}
+	if p.Conn != nil {
+		p.Conn.Close()
+	}
+
 	return nil
 }
 

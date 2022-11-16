@@ -1,6 +1,7 @@
 package sfu
 
 import (
+	//"fmt"
 	"math/rand"
 	"net"
 	"os"
@@ -11,6 +12,8 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/pion/ice/v2"
 	"github.com/pion/ion-sfu/pkg/buffer"
+
+	// cacheredis "github.com/pion/ion-sfu/pkg/cache"
 	"github.com/pion/ion-sfu/pkg/stats"
 	"github.com/pion/turn/v2"
 	"github.com/pion/webrtc/v3"
@@ -274,4 +277,54 @@ func (s *SFU) GetSessions() []Session {
 		sessions = append(sessions, session)
 	}
 	return sessions
+}
+
+func (s *SFU) CheckSession(id string) (bool, bool, *SFU) {
+	session := s.getSession(id)
+	//sessions := s.GetSessions()
+	var result bool = false
+	var newConn bool = false
+	if session == nil {
+		result = true
+		newConn = true
+	} else {
+		result = true
+		newConn = false
+	}
+	// else if session != nil {
+	// 	ssids, err := cacheredis.GetCacheRedis("sessionid")
+	// 	if err != nil {
+	// 		fmt.Println("Err get cache ssid", err)
+	// 		return false, false, nil
+	// 	}
+	// 	for i := 0; i < len(ssids); i++ {
+	// 		if ssids[i] == session.ID() {
+	// 			result = true
+	// 			break
+	// 		}
+	// 	}
+	// 	if result == false {
+	// 		session.RemoveAllPeer()
+	// 	}
+
+	// } else if session == nil {
+	// 	ssids, err := cacheredis.GetCacheRedis("sessionid")
+	// 	if err != nil {
+	// 		fmt.Println("Err get cache ssid", err)
+	// 		return false, false, nil
+	// 	}
+	// 	for i := 0; i < len(ssids); i++ {
+	// 		if ssids[i] == sessions[0].ID() {
+	// 			result = false
+	// 			break
+	// 		} else {
+	// 			result = true
+	// 		}
+	// 	}
+	// 	if result == true {
+	// 		newConn = true
+	// 		sessions[0].RemoveAllPeer()
+	// 	}
+	// }
+	return result, newConn, s
 }
