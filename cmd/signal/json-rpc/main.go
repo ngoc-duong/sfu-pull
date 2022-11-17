@@ -14,6 +14,7 @@ import (
 	"github.com/pion/ion-sfu/cmd/signal/json-rpc/server"
 	log "github.com/pion/ion-sfu/pkg/logger"
 	"github.com/pion/ion-sfu/pkg/middlewares/datachannel"
+	schedulecheck "github.com/pion/ion-sfu/pkg/schedule"
 	"github.com/pion/ion-sfu/pkg/sfu"
 	"github.com/pion/webrtc/v3"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -202,6 +203,8 @@ func main() {
 	}))
 
 	go startMetrics(metricsAddr)
+
+	go schedulecheck.ScheduleCheckSession(s, logger)
 
 	var err error
 	if key != "" && cert != "" {

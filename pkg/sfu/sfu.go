@@ -328,3 +328,9 @@ func (s *SFU) CheckSession(id string) (bool, bool, *SFU) {
 	// }
 	return result, newConn, s
 }
+
+func (s *SFU) GetMapSession() map[string]Session {
+	s.RLock()
+	defer s.RUnlock()
+	return s.sessions
+}

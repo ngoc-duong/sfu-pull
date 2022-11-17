@@ -31,6 +31,7 @@ type Session interface {
 	Peers() []Peer
 	RelayPeers() []*RelayPeer
 	RemoveAllPeer()
+	Close()
 }
 
 type SessionLocal struct {

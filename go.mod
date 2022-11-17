@@ -6,6 +6,7 @@ require (
 	github.com/bep/debounce v1.2.0
 	github.com/gammazero/deque v0.1.0
 	github.com/gammazero/workerpool v1.1.2
+	github.com/go-co-op/gocron v1.18.0 // indirect
 	github.com/go-logr/logr v1.2.0
 	github.com/go-logr/zerologr v1.2.1
 	github.com/go-redis/redis/v8 v8.11.5 // indirect
@@ -30,7 +31,7 @@ require (
 	github.com/soheilhy/cmux v0.1.5
 	github.com/sourcegraph/jsonrpc2 v0.1.0
 	github.com/spf13/viper v1.9.0
-	github.com/stretchr/testify v1.7.0
+	github.com/stretchr/testify v1.8.1
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
 	google.golang.org/grpc v1.41.0
 )
